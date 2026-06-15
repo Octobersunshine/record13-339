@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 from equidistant_sampler import equidistant_sample, EquidistantSampler
 
 
@@ -31,10 +32,23 @@ def test_series_sampling():
 
 def test_small_dataset():
     df = pd.DataFrame({"value": range(3)})
-    result = equidistant_sample(df, interval=10, random_offset=False, seed=0)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = equidistant_sample(df, interval=10, random_offset=False, seed=0)
+        assert len(w) == 1, f"应发出1条警告, 实际 {len(w)}条"
+        assert "大于数据总量" in str(w[0].message)
+        assert issubclass(w[0].category, UserWarning)
+    assert len(result) == 3, f"interval>n时应返回全部数据, 实际 {len(result)}条"
+    assert result["value"].tolist() == [0, 1, 2]
+    print(f"[PASS] 小数据集: 3条 interval=10 → 返回全部 {len(result)}条, 且发出警告")
+
+
+def test_interval_equal_to_n():
+    df = pd.DataFrame({"value": range(5)})
+    result = equidistant_sample(df, interval=5, random_offset=False, seed=0)
     assert len(result) == 1
     assert result["value"].iloc[0] == 0
-    print(f"[PASS] 小数据集: 3条 interval=10 → {len(result)}条")
+    print(f"[PASS] interval==n: 5条 interval=5 → {len(result)}条")
 
 
 def test_empty_dataset():
@@ -79,14 +93,29 @@ def test_reproducibility():
     print(f"[PASS] 可复现性: seed=123 → {len(r1)}条")
 
 
+def test_sampler_class_small_dataset():
+    sampler = EquidistantSampler(interval=100, random_offset=True, seed=1)
+    df = pd.DataFrame({"value": range(5)})
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = sampler.sample(df)
+        assert len(w) == 1
+        assert "大于数据总量" in str(w[0].message)
+    assert len(result) == 5
+    assert sampler.last_offset is None
+    print(f"[PASS] Sampler类小数据集: 5条 interval=100 → 返回全部, last_offset=None")
+
+
 if __name__ == "__main__":
     test_basic_sampling()
     test_random_offset()
     test_series_sampling()
     test_small_dataset()
+    test_interval_equal_to_n()
     test_empty_dataset()
     test_interval_1()
     test_invalid_interval()
     test_sampler_class()
+    test_sampler_class_small_dataset()
     test_reproducibility()
     print("\n全部测试通过!")

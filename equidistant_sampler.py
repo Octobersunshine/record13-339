@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import warnings
 from typing import Optional, Union
 
 
@@ -15,6 +16,15 @@ def equidistant_sample(
     n = len(data)
     if n == 0:
         return data.iloc[0:0]
+
+    if interval > n:
+        warnings.warn(
+            f"采样间隔 interval={interval} 大于数据总量 n={n}，"
+            f"将返回全部 {n} 条数据。建议将 interval 设置为 <= {n}。",
+            UserWarning,
+            stacklevel=2,
+        )
+        return data.reset_index(drop=True)
 
     if seed is not None:
         np.random.seed(seed)
@@ -45,12 +55,22 @@ class EquidistantSampler:
     def sample(
         self, data: Union[pd.DataFrame, pd.Series]
     ) -> Union[pd.DataFrame, pd.Series]:
-        if self.seed is not None:
-            np.random.seed(self.seed)
-
         n = len(data)
         if n == 0:
             return data.iloc[0:0]
+
+        if self.interval > n:
+            warnings.warn(
+                f"采样间隔 interval={self.interval} 大于数据总量 n={n}，"
+                f"将返回全部 {n} 条数据。建议将 interval 设置为 <= {n}。",
+                UserWarning,
+                stacklevel=2,
+            )
+            self._last_offset = None
+            return data.reset_index(drop=True)
+
+        if self.seed is not None:
+            np.random.seed(self.seed)
 
         offset = (
             np.random.randint(0, self.interval) if self.random_offset else 0

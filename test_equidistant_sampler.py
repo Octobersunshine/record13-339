@@ -106,6 +106,83 @@ def test_sampler_class_small_dataset():
     print(f"[PASS] Sampler类小数据集: 5条 interval=100 → 返回全部, last_offset=None")
 
 
+def test_circular_basic():
+    df = pd.DataFrame({"value": range(10)})
+    result = equidistant_sample(
+        df, interval=3, random_offset=False, circular=True, n_samples=5
+    )
+    expected_values = [0, 3, 6, 9, 2]
+    assert result["value"].tolist() == expected_values, (
+        f"环形采样失败: {result['value'].tolist()} != {expected_values}"
+    )
+    print(f"[PASS] 环形采样基础: n=10,interval=3,n_samples=5 → {result['value'].tolist()}")
+
+
+def test_circular_default_n_samples():
+    df = pd.DataFrame({"value": range(10)})
+    result = equidistant_sample(
+        df, interval=3, random_offset=False, circular=True
+    )
+    expected_count = int(np.ceil(10 / 3))
+    assert len(result) == expected_count
+    print(f"[PASS] 环形采样默认数量: 默认 n_samples={expected_count}")
+
+
+def test_circular_large_interval():
+    df = pd.DataFrame({"value": range(5)})
+    result = equidistant_sample(
+        df, interval=10, random_offset=False, circular=True, n_samples=4
+    )
+    expected_values = [0, 0, 0, 0]
+    assert result["value"].tolist() == expected_values, (
+        f"大间隔环形采样失败: {result['value'].tolist()} != {expected_values}"
+    )
+    print(f"[PASS] 大间隔环形采样: interval=10,n=5,n_samples=4 → {result['value'].tolist()}")
+
+
+def test_circular_random_offset_seed():
+    df = pd.DataFrame({"value": range(10)})
+    r1 = equidistant_sample(
+        df, interval=3, random_offset=True, circular=True, n_samples=6, seed=7
+    )
+    r2 = equidistant_sample(
+        df, interval=3, random_offset=True, circular=True, n_samples=6, seed=7
+    )
+    assert r1.equals(r2)
+    offset = r1["value"].iloc[0]
+    step = (r1["value"].iloc[1] - offset) % 10
+    assert step == 3, f"环形间隔应为3 mod 10, 实际: {step}"
+    print(f"[PASS] 环形随机偏移+seed: offset={offset}, 样本={r1['value'].tolist()}")
+
+
+def test_circular_sampler_class():
+    sampler = EquidistantSampler(
+        interval=4, random_offset=False, circular=True, n_samples=6
+    )
+    df = pd.DataFrame({"value": range(7)})
+    result = sampler.sample(df)
+    expected_values = [0, 4, 1, 5, 2, 6]
+    assert result["value"].tolist() == expected_values
+    print(f"[PASS] Sampler类环形采样: {result['value'].tolist()}")
+
+
+def test_n_samples_truncation():
+    df = pd.DataFrame({"value": range(100)})
+    result = equidistant_sample(
+        df, interval=10, random_offset=False, circular=False, n_samples=3
+    )
+    assert result["value"].tolist() == [0, 10, 20]
+    print(f"[PASS] n_samples截断: {result['value'].tolist()}")
+
+
+def test_invalid_n_samples():
+    try:
+        equidistant_sample(pd.DataFrame({"a": [1, 2]}), n_samples=0)
+        assert False, "应抛出异常"
+    except ValueError as e:
+        print(f"[PASS] 无效n_samples: {e}")
+
+
 if __name__ == "__main__":
     test_basic_sampling()
     test_random_offset()
@@ -118,4 +195,11 @@ if __name__ == "__main__":
     test_sampler_class()
     test_sampler_class_small_dataset()
     test_reproducibility()
+    test_circular_basic()
+    test_circular_default_n_samples()
+    test_circular_large_interval()
+    test_circular_random_offset_seed()
+    test_circular_sampler_class()
+    test_n_samples_truncation()
+    test_invalid_n_samples()
     print("\n全部测试通过!")
